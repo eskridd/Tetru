@@ -53,7 +53,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          gcc -Wall -Wextra -O2 -I/ucrt64/include -I/ucrt64/include/pdcurses main.c -o tetru.exe -L/ucrt64/lib -lpdcurses
+          gcc -Wall -Wextra -O2 -DPDC_WIDE -DPDC_FORCE_UTF8 -I/ucrt64/include -I/ucrt64/include/pdcurses main.c -o tetru.exe -L/ucrt64/lib -lpdcurses
 
       - name: Upload Artifact (Unix)
         if: runner.os != 'Windows'

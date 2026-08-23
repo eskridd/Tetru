@@ -1,4 +1,10 @@
 #ifdef _WIN32
+    #ifndef PDC_WIDE
+        #define PDC_WIDE
+    #endif
+    #ifndef PDC_FORCE_UTF8
+        #define PDC_FORCE_UTF8
+    #endif
     #define WIN32_LEAN_AND_MEAN
     #define _CRT_SECURE_NO_WARNINGS
     #include <windows.h>
@@ -216,10 +222,12 @@ static MenuStar stars[MENU_STARS];
 static int global_tick = 0;
 static volatile sig_atomic_t running = 1;
 
+#ifndef _WIN32
 static void handle_sigint(int sig) {
     (void)sig;
     running = 0;
 }
+#endif
 
 static uint64_t compute_checksum(const StatsData *d) {
     const uint8_t *bytes = (const uint8_t *)d;

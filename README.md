@@ -74,11 +74,16 @@ make
 ./tetru
 ```
 
-### Windows
+### Windows (MSYS2 UCRT64)
 ```bash
-# Using MinGW-w64 + PDCurses
-gcc -Wall -Wextra -O2 main.c -o tetru.exe -lpdcurses
+# Install toolchain + PDCurses: pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pdcurses
+
+# Using MinGW-w64 + PDCurses (wide/UTF-8 build required by MSYS2's pdcurses package)
+gcc -Wall -Wextra -O2 -DPDC_WIDE -DPDC_FORCE_UTF8 main.c -o tetru.exe -lpdcurses
 .\tetru.exe
+
+# Or simply:
+make
 ```
 
 ---

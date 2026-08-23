@@ -3,6 +3,7 @@ CFLAGS ?= -Wall -Wextra -O2
 
 ifeq ($(OS),Windows_NT)
     TARGET = tetru.exe
+    CFLAGS += -DPDC_WIDE -DPDC_FORCE_UTF8
     LDFLAGS ?= -lpdcurses
     RM = del /Q /F
 else
