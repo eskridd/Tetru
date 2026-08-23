@@ -3,6 +3,9 @@
     #define _CRT_SECURE_NO_WARNINGS
     #include <windows.h>
     #include <io.h>
+    #ifdef MOUSE_MOVED
+        #undef MOUSE_MOVED
+    #endif
     #if defined(__has_include)
         #if __has_include(<curses.h>)
             #include <curses.h>
@@ -25,9 +28,9 @@
 #else
     #include <ncurses.h>
     #include <unistd.h>
-    #include <signal.h>
 #endif
 
+#include <signal.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
