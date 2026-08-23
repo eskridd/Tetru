@@ -1,5 +1,21 @@
 #ifdef _WIN32
-    #include <curses.h>
+    #if defined(__has_include)
+        #if __has_include(<curses.h>)
+            #include <curses.h>
+        #elif __has_include(<pdcurses.h>)
+            #include <pdcurses.h>
+        #elif __has_include(<pdcurses/curses.h>)
+            #include <pdcurses/curses.h>
+        #elif __has_include(<ncurses/ncurses.h>)
+            #include <ncurses/ncurses.h>
+        #elif __has_include(<ncurses.h>)
+            #include <ncurses.h>
+        #else
+            #include <curses.h>
+        #endif
+    #else
+        #include <curses.h>
+    #endif
     #include <windows.h>
     #include <io.h>
 #else

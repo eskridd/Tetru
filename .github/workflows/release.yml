@@ -32,6 +32,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
+          msystem: MINGW64
           update: true
           install: >-
             mingw-w64-x86_64-gcc
@@ -52,7 +53,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          gcc -Wall -Wextra -O2 main.c -o tetru.exe -lpdcurses
+          gcc -Wall -Wextra -O2 -I/mingw64/include -I/mingw64/include/pdcurses main.c -o tetru.exe -L/mingw64/lib -lpdcurses
 
       - name: Upload Artifact (Unix)
         if: runner.os != 'Windows'
