@@ -11,44 +11,62 @@ jobs:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             artifact_name: tetru-linux-x86_64
             binary: tetru
-            install_cmd: sudo apt update && sudo apt install -y build-essential libncurses-dev
           - os: macos-latest
             artifact_name: tetru-macos-universal
             binary: tetru
-            install_cmd: ""
           - os: windows-latest
-            artifact_name: tetru-windows-x86_64.zip
+            artifact_name: tetru-windows-x86_64
             binary: tetru.exe
-            install_cmd: choco install mingw pdcurses -y
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup MinGW & PDCurses (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pdcurses
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: ${{ matrix.install_cmd }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
         run: make
 
-      - name: Build (Windows)
+      - name: Build (Windows MSYS2)
         if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           gcc -Wall -Wextra -O2 main.c -o tetru.exe -lpdcurses
-          Compress-Archive -Path tetru.exe, README.md, LICENSE -DestinationPath tetru-windows-x86_64.zip
 
-      - name: Upload Artifact
+      - name: Upload Artifact (Unix)
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ runner.os == 'Windows' && 'tetru-windows-x86_64.zip' || 'tetru' }}
+          path: tetru
+
+      - name: Upload Artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: tetru.exe
 
   release:
     name: Create GitHub Release
@@ -64,14 +82,15 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: Package Linux & macOS binaries
+      - name: Package Archives
         run: |
+          sudo apt-get update && sudo apt-get install -y zip
           cd release-artifacts
           chmod +x tetru-linux-x86_64/tetru
           tar -czvf tetru-linux-x86_64.tar.gz -C tetru-linux-x86_64 tetru
           chmod +x tetru-macos-universal/tetru
           tar -czvf tetru-macos-universal.tar.gz -C tetru-macos-universal tetru
-          mv tetru-windows-x86_64/tetru-windows-x86_64.zip .
+          zip -j tetru-windows-x86_64.zip tetru-windows-x86_64/tetru.exe ../README.md ../LICENSE
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
