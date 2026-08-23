@@ -1,0 +1,95 @@
+name: Build and Release Tetru
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: tetru-linux-x86_64
+            binary: tetru
+            install_cmd: sudo apt update && sudo apt install -y build-essential libncurses-dev
+          - os: macos-latest
+            artifact_name: tetru-macos-universal
+            binary: tetru
+            install_cmd: ""
+          - os: windows-latest
+            artifact_name: tetru-windows-x86_64.zip
+            binary: tetru.exe
+            install_cmd: choco install mingw pdcurses -y
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: ${{ matrix.install_cmd }}
+
+      - name: Build (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: make
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          gcc -Wall -Wextra -O2 main.c -o tetru.exe -lpdcurses
+          Compress-Archive -Path tetru.exe, README.md, LICENSE -DestinationPath tetru-windows-x86_64.zip
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ runner.os == 'Windows' && 'tetru-windows-x86_64.zip' || 'tetru' }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Package Linux & macOS binaries
+        run: |
+          cd release-artifacts
+          chmod +x tetru-linux-x86_64/tetru
+          tar -czvf tetru-linux-x86_64.tar.gz -C tetru-linux-x86_64 tetru
+          chmod +x tetru-macos-universal/tetru
+          tar -czvf tetru-macos-universal.tar.gz -C tetru-macos-universal tetru
+          mv tetru-windows-x86_64/tetru-windows-x86_64.zip .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Tetru ${{ github.ref_name }}"
+          body: |
+            ## Tetru ${{ github.ref_name }}
+            
+            ### Changelog
+            - Cross-platform support for Linux, macOS, and Windows.
+            - Multiple game modes: Classic, 40-Line Sprint, Survival Rush, and VS AI Battle.
+            - 5 AI difficulty settings.
+            - Cryptographically signed anti-tamper career stats.
+            - Smooth controls, wall kicks, and 450ms lock delay.
+            - Dynamic animated TUI with particle bursts and screen shake.
+          files: |
+            release-artifacts/tetru-linux-x86_64.tar.gz
+            release-artifacts/tetru-macos-universal.tar.gz
+            release-artifacts/tetru-windows-x86_64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

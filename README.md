@@ -1,6 +1,6 @@
-# Tetru
+# Tetru (v0.0.3 TeBeta)
 
-Tetru is a fast, terminal-based falling-block arcade game written in pure C using `ncurses`. It features a custom TUI engine, responsive sliding controls, multiple game modes, an adaptive AI opponent, and persistent local stats tracking.
+Tetru is a fast, cross-platform terminal arcade game written in pure C. It features a custom TUI engine, responsive sliding controls, multiple game modes, an adaptive AI opponent, and cryptographically verified local career stats.
 
 Made by **Eskrid**.
 
@@ -8,6 +8,7 @@ Made by **Eskrid**.
 
 ## Features
 
+- **Cross-Platform**: Runs natively on **Linux**, **macOS**, and **Windows**.
 - **Dynamic Animated TUI**: Live drifting starfield background, animated rainbow title banner, frame pulse effects, and clean borders.
 - **Visual Feedback & Effects**:
   - Spark particle bursts on line clears and hard drops.
@@ -20,14 +21,9 @@ Made by **Eskrid**.
   2. **40-Line Sprint**: Speedrun challenge with live stopwatch tracking.
   3. **Survival Rush**: Bottom-up garbage attacks with escalating pressure.
   4. **VS Computer (AI Battle)**: Real-time duel against an AI opponent featuring attack cancelation and garbage delivery.
-- **5 AI Difficulty Levels**:
-  - Beginner
-  - Easy
-  - Medium
-  - Hard
-  - Impossible
+- **5 AI Difficulty Levels**: Beginner, Easy, Medium, Hard, and Impossible.
 - **Fluid & Responsive Controls**: 7-bag randomizer, wall kicks, and a 450ms lock delay for sliding adjustments.
-- **Persistent Local Records**: Tracks career stats, high scores, best sprint times, wins, and losses in `tetru_stats.dat`.
+- **Tamper-Resistant Career Records**: Cryptographically signed local stats with keyed checksum validation and boundary verification.
 
 ---
 
@@ -47,46 +43,40 @@ Made by **Eskrid**.
 
 ---
 
-## Requirements
+## Installation & Building
 
-- GCC or Clang compiler
-- GNU Make
-- `libncurses` (ncurses development headers)
-
-### Debian / Ubuntu
+### Linux
 ```bash
-sudo apt update
+# Debian / Ubuntu / Mint
 sudo apt install build-essential libncurses-dev
-```
 
-### Arch Linux / Manjaro
-```bash
+# Arch Linux / Manjaro
 sudo pacman -S base-devel ncurses
-```
 
-### Fedora / RHEL
-```bash
+# Fedora / RHEL
 sudo dnf install gcc make ncurses-devel
-```
 
----
-
-## Building and Running
-
-Clone or navigate to the project directory, then run:
-
-```bash
+# Build & Run
 make
 ./tetru
 ```
 
-To clean build artifacts:
+### macOS
 ```bash
-make clean
+# macOS has ncurses built-in or via Homebrew
+make
+./tetru
+```
+
+### Windows
+```bash
+# Using MinGW-w64 + PDCurses
+gcc -Wall -Wextra -O2 main.c -o tetru.exe -lpdcurses
+.\tetru.exe
 ```
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](file:///run/media/eskrid/44/404/projects/Tetru/LICENSE) for full details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

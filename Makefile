@@ -1,8 +1,21 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lncurses
+CC ?= gcc
+CFLAGS ?= -Wall -Wextra -O2
 
-TARGET = tetru
+ifeq ($(OS),Windows_NT)
+    TARGET = tetru.exe
+    LDFLAGS ?= -lpdcurses
+    RM = del /Q /F
+else
+    UNAME_S := $(shell uname -s)
+    TARGET = tetru
+    ifeq ($(UNAME_S),Darwin)
+        LDFLAGS ?= -lncurses
+    else
+        LDFLAGS ?= -lncurses
+    endif
+    RM = rm -f
+endif
+
 SRCS = main.c
 
 all: $(TARGET)
@@ -11,6 +24,6 @@ $(TARGET): $(SRCS)
 	$(CC) $(CFLAGS) $(SRCS) -o $(TARGET) $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET)
+	$(RM) $(TARGET)
 
 .PHONY: all clean

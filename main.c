@@ -1,15 +1,23 @@
-#include <ncurses.h>
+#ifdef _WIN32
+    #include <curses.h>
+    #include <windows.h>
+    #include <io.h>
+#else
+    #include <ncurses.h>
+    #include <unistd.h>
+    #include <signal.h>
+#endif
+
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
 #include <string.h>
-#include <signal.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/stat.h>
 
+#define TETRU_VERSION "v0.0.3 TeBeta"
 #define BOARD_W 10
 #define BOARD_H 20
 #define MAX_PARTICLES 160
@@ -261,6 +269,7 @@ static void save_stats(void) {
 
 static unsigned int secure_seed(void) {
     unsigned int seed = 0;
+#ifndef _WIN32
     int fd = open("/dev/urandom", O_RDONLY);
     if (fd >= 0) {
         if (read(fd, &seed, sizeof(seed)) != (ssize_t)sizeof(seed)) {
@@ -270,13 +279,28 @@ static unsigned int secure_seed(void) {
     } else {
         seed = (unsigned int)time(NULL) ^ (unsigned int)getpid();
     }
+#else
+    seed = (unsigned int)time(NULL) ^ (unsigned int)GetCurrentProcessId();
+#endif
     return seed;
 }
 
 static double get_time_sec(void) {
+#ifndef _WIN32
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec / 1000000000.0;
+#else
+    static LARGE_INTEGER freq;
+    static bool init = false;
+    if (!init) {
+        QueryPerformanceFrequency(&freq);
+        init = true;
+    }
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return (double)counter.QuadPart / (double)freq.QuadPart;
+#endif
 }
 
 static void init_menu_stars(int term_h, int term_w) {
@@ -1076,7 +1100,7 @@ static void render_menu(int term_h, int term_w) {
     erase();
     draw_menu_stars();
 
-    int menu_h = 24;
+    int menu_h = 25;
     int menu_w = 58;
     int sy = (term_h - menu_h) / 2;
     int sx = (term_w - menu_w) / 2;
@@ -1100,6 +1124,10 @@ static void render_menu(int term_h, int term_w) {
         attroff(COLOR_PAIR(color) | A_BOLD);
     }
 
+    attron(COLOR_PAIR(14));
+    mvprintw(sy + 6, sx + (menu_w - (int)strlen(TETRU_VERSION)) / 2, "%s", TETRU_VERSION);
+    attroff(COLOR_PAIR(14));
+
     const char *options[6] = {
         "1. Classic Mode (Endless)",
         "2. 40-Line Sprint (Speedrun)",
@@ -1112,21 +1140,21 @@ static void render_menu(int term_h, int term_w) {
     for (int i = 0; i < 6; i++) {
         if (menu_selection == i) {
             attron(COLOR_PAIR(i + 1) | A_BOLD | A_REVERSE);
-            mvprintw(sy + 7 + i * 2, sx + 8, "  >> %-36s <<  ", options[i]);
+            mvprintw(sy + 8 + i * 2, sx + 8, "  >> %-36s <<  ", options[i]);
             attroff(COLOR_PAIR(i + 1) | A_BOLD | A_REVERSE);
         } else {
             attron(COLOR_PAIR(10));
-            mvprintw(sy + 7 + i * 2, sx + 10, "   [ %-34s ]   ", options[i]);
+            mvprintw(sy + 8 + i * 2, sx + 10, "   [ %-34s ]   ", options[i]);
             attroff(COLOR_PAIR(10));
         }
     }
 
     attron(COLOR_PAIR(15));
-    mvaddstr(sy + 20, sx + 6, "Controls: UP/DOWN/W/S | ENTER/SPACE: Select");
+    mvaddstr(sy + 21, sx + 6, "Controls: UP/DOWN/W/S | ENTER/SPACE: Select");
     attroff(COLOR_PAIR(15));
 
     attron(COLOR_PAIR(16) | A_BOLD);
-    mvaddstr(sy + 22, sx + (menu_w - 18) / 2, "Made by Eskrid");
+    mvaddstr(sy + 23, sx + (menu_w - 18) / 2, "Made by Eskrid");
     attroff(COLOR_PAIR(16) | A_BOLD);
 
     refresh();
@@ -1193,11 +1221,13 @@ static void start_game(GameMode mode, AiDifficulty diff) {
 }
 
 int main(void) {
+#ifndef _WIN32
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_sigint;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
+#endif
 
     load_stats();
 
