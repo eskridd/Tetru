@@ -7,12 +7,17 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <sys/stat.h>
 
 #define BOARD_W 10
 #define BOARD_H 20
 #define MAX_PARTICLES 160
 #define MENU_STARS 50
 #define STATS_FILE "tetru_stats.dat"
+#define STATS_MAGIC 0x5445545255535441ULL
+#define STATS_VERSION 1
+#define HMAC_KEY 0x9e3779b97f4a7c15ULL
 
 static const int BLOCKS[7][4][4][4] = {
     {
@@ -83,19 +88,27 @@ typedef enum {
 } AiDifficulty;
 
 typedef struct {
-    int total_games;
-    int classic_high_score;
-    int classic_max_lines;
-    int sprint_games;
-    int sprint_wins;
+    int32_t total_games;
+    int32_t classic_high_score;
+    int32_t classic_max_lines;
+    int32_t sprint_games;
+    int32_t sprint_wins;
     double sprint_best_time;
-    int survival_high_score;
-    int vs_games;
-    int vs_wins;
-    int vs_losses;
-    int total_lines_cleared;
-    int total_tetrus;
-} GameStats;
+    int32_t survival_high_score;
+    int32_t vs_games;
+    int32_t vs_wins;
+    int32_t vs_losses;
+    int32_t total_lines_cleared;
+    int32_t total_tetrus;
+} StatsData;
+
+typedef struct {
+    uint64_t magic;
+    uint32_t version;
+    uint32_t reserved;
+    StatsData data;
+    uint64_t checksum;
+} StatsFileHeader;
 
 typedef struct {
     int type;
@@ -167,7 +180,7 @@ static int menu_selection = 0;
 static int diff_selection = 2;
 static PlayerState p1;
 static PlayerState p2;
-static GameStats global_stats;
+static StatsData global_stats;
 static MenuStar stars[MENU_STARS];
 static int global_tick = 0;
 static volatile sig_atomic_t running = 1;
@@ -177,21 +190,72 @@ static void handle_sigint(int sig) {
     running = 0;
 }
 
+static uint64_t compute_checksum(const StatsData *d) {
+    const uint8_t *bytes = (const uint8_t *)d;
+    uint64_t hash = HMAC_KEY;
+    for (size_t i = 0; i < sizeof(StatsData); i++) {
+        hash ^= (uint64_t)bytes[i];
+        hash *= 0x100000001b3ULL;
+        hash = (hash << 13) | (hash >> (64 - 13));
+    }
+    return hash;
+}
+
+static void sanitize_stats(StatsData *d) {
+    if (d->total_games < 0 || d->total_games > 10000000) d->total_games = 0;
+    if (d->classic_high_score < 0 || d->classic_high_score > 500000000) d->classic_high_score = 0;
+    if (d->classic_max_lines < 0 || d->classic_max_lines > 100000) d->classic_max_lines = 0;
+    if (d->sprint_games < 0 || d->sprint_games > 1000000) d->sprint_games = 0;
+    if (d->sprint_wins < 0 || d->sprint_wins > d->sprint_games) d->sprint_wins = 0;
+    if (d->sprint_best_time < 5.0 || d->sprint_best_time > 9999.0) d->sprint_best_time = 9999.0;
+    if (d->survival_high_score < 0 || d->survival_high_score > 500000000) d->survival_high_score = 0;
+    if (d->vs_games < 0 || d->vs_games > 1000000) d->vs_games = 0;
+    if (d->vs_wins < 0 || d->vs_wins > d->vs_games) d->vs_wins = 0;
+    if (d->vs_losses < 0 || d->vs_losses > d->vs_games) d->vs_losses = 0;
+    if (d->total_lines_cleared < 0 || d->total_lines_cleared > 100000000) d->total_lines_cleared = 0;
+    if (d->total_tetrus < 0 || d->total_tetrus > d->total_lines_cleared) d->total_tetrus = 0;
+}
+
 static void load_stats(void) {
     memset(&global_stats, 0, sizeof(global_stats));
     global_stats.sprint_best_time = 9999.0;
-    FILE *f = fopen(STATS_FILE, "rb");
-    if (f) {
-        fread(&global_stats, sizeof(GameStats), 1, f);
-        fclose(f);
+
+    int fd = open(STATS_FILE, O_RDONLY);
+    if (fd < 0) return;
+
+    StatsFileHeader header;
+    ssize_t bytes_read = read(fd, &header, sizeof(header));
+    close(fd);
+
+    if (bytes_read == (ssize_t)sizeof(header)) {
+        if (header.magic == STATS_MAGIC && header.version == STATS_VERSION) {
+            uint64_t expected = compute_checksum(&header.data);
+            if (header.checksum == expected) {
+                global_stats = header.data;
+                sanitize_stats(&global_stats);
+                return;
+            }
+        }
     }
+
+    memset(&global_stats, 0, sizeof(global_stats));
+    global_stats.sprint_best_time = 9999.0;
 }
 
 static void save_stats(void) {
-    FILE *f = fopen(STATS_FILE, "wb");
-    if (f) {
-        fwrite(&global_stats, sizeof(GameStats), 1, f);
-        fclose(f);
+    sanitize_stats(&global_stats);
+    StatsFileHeader header;
+    memset(&header, 0, sizeof(header));
+    header.magic = STATS_MAGIC;
+    header.version = STATS_VERSION;
+    header.data = global_stats;
+    header.checksum = compute_checksum(&global_stats);
+
+    int fd = open(STATS_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd >= 0) {
+        ssize_t written = write(fd, &header, sizeof(header));
+        (void)written;
+        close(fd);
     }
 }
 
@@ -491,7 +555,7 @@ static void record_endgame_stats(void) {
         if (p1.won) {
             global_stats.sprint_wins++;
             double time_taken = get_time_sec() - p1.mode_start_time;
-            if (time_taken < global_stats.sprint_best_time) {
+            if (time_taken >= 5.0 && time_taken < global_stats.sprint_best_time) {
                 global_stats.sprint_best_time = time_taken;
             }
         }
