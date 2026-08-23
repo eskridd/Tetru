@@ -46,7 +46,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 
-#define TETRU_VERSION "v0.0.3 TeBeta"
+#define TETRU_VERSION "v0.0.3.1 TeBeta"
 #define BOARD_W 10
 #define BOARD_H 20
 #define MAX_PARTICLES 160
