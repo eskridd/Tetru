@@ -1,4 +1,8 @@
 #ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #define _CRT_SECURE_NO_WARNINGS
+    #include <windows.h>
+    #include <io.h>
     #if defined(__has_include)
         #if __has_include(<curses.h>)
             #include <curses.h>
@@ -6,6 +10,8 @@
             #include <pdcurses.h>
         #elif __has_include(<pdcurses/curses.h>)
             #include <pdcurses/curses.h>
+        #elif __has_include(<ncursesw/curses.h>)
+            #include <ncursesw/curses.h>
         #elif __has_include(<ncurses/ncurses.h>)
             #include <ncurses/ncurses.h>
         #elif __has_include(<ncurses.h>)
@@ -16,8 +22,6 @@
     #else
         #include <curses.h>
     #endif
-    #include <windows.h>
-    #include <io.h>
 #else
     #include <ncurses.h>
     #include <unistd.h>
