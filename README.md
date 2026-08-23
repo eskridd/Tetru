@@ -6,11 +6,9 @@ Made by **Eskrid**.
 
 ---
 
-https://github.com/user-attachments/assets/tetru.mp4
-
-https://raw.githubusercontent.com/eskridd/Tetru/main/tetru.mp4
-
-<video src="tetru.mp4" autoplay loop muted playsinline width="100%"></video>
+<p align="center">
+  <img src="tetru.gif" alt="Tetru Gameplay Demo" width="700">
+</p>
 
 ---
 
