@@ -5,7 +5,7 @@ ifeq ($(OS),Windows_NT)
     TARGET = tetru.exe
     CFLAGS += -DPDC_WIDE -DPDC_FORCE_UTF8
     LDFLAGS ?= -lpdcurses
-    RM = del /Q /F
+    RM = rm -f
 else
     UNAME_S := $(shell uname -s)
     TARGET = tetru

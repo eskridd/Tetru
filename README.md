@@ -1,4 +1,4 @@
-# Tetru (v0.0.3 TeBeta)
+# Tetru (v0.0.3.1 TeBeta)
 
 Tetru is a fast, cross-platform terminal arcade game written in pure C. It features a custom TUI engine, responsive sliding controls, multiple game modes, an adaptive AI opponent, and cryptographically verified local career stats.
 

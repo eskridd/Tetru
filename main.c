@@ -160,7 +160,6 @@ typedef struct {
     float vx;
     float vy;
     int life;
-    int max_life;
     int color;
     char ch;
 } Particle;
@@ -196,6 +195,7 @@ typedef struct {
     int banner_timer;
     int banner_color;
     double mode_start_time;
+    double mode_end_time;
     double survival_timer;
     bool won;
     bool game_over;
@@ -334,6 +334,26 @@ static double get_time_sec(void) {
 #endif
 }
 
+static void stop_mode_clock(PlayerState *p) {
+    if (p->mode_end_time == 0.0) {
+        p->mode_end_time = get_time_sec();
+    }
+}
+
+static double elapsed_mode_time(const PlayerState *p) {
+    double end_t = (p->mode_end_time > 0.0) ? p->mode_end_time : get_time_sec();
+    return end_t - p->mode_start_time;
+}
+
+static void offset_timers(PlayerState *p, double delta) {
+    p->last_drop_time += delta;
+    if (p->is_locking) p->lock_timer += delta;
+    p->ai_move_time += delta;
+    p->survival_timer += delta;
+    p->mode_start_time += delta;
+    if (p->mode_end_time > 0.0) p->mode_end_time += delta;
+}
+
 static void init_menu_stars(int term_h, int term_w) {
     for (int i = 0; i < MENU_STARS; i++) {
         stars[i].x = rand() % (term_w > 0 ? term_w : 80);
@@ -356,6 +376,9 @@ static void update_menu_stars(int term_h, int term_w) {
 
 static void draw_menu_stars(void) {
     for (int i = 0; i < MENU_STARS; i++) {
+        if (stars[i].x < 0 || stars[i].y < 0 || stars[i].x >= COLS || stars[i].y >= LINES) {
+            continue;
+        }
         attron(COLOR_PAIR(stars[i].color));
         mvaddch(stars[i].y, stars[i].x, stars[i].ch);
         attroff(COLOR_PAIR(stars[i].color));
@@ -406,6 +429,7 @@ static void spawn_player_piece(PlayerState *p) {
 
     if (check_collision(p, &p->current, 0, 0, p->current.rot)) {
         p->game_over = true;
+        stop_mode_clock(p);
     }
 }
 
@@ -432,6 +456,7 @@ static void init_player(PlayerState *p, bool is_ai, AiDifficulty diff) {
     p->banner_timer = 0;
     p->banner_text[0] = '\0';
     p->mode_start_time = get_time_sec();
+    p->mode_end_time = 0.0;
     p->survival_timer = get_time_sec();
     p->won = false;
     p->game_over = false;
@@ -449,7 +474,6 @@ static void add_particle(PlayerState *p, float x, float y, int color) {
             p->particles[i].vx = ((rand() % 100) - 50) / 30.0f;
             p->particles[i].vy = -((rand() % 60) + 15) / 30.0f;
             p->particles[i].life = 12 + (rand() % 10);
-            p->particles[i].max_life = p->particles[i].life;
             p->particles[i].color = color;
             p->particles[i].ch = "*+^."[rand() % 4];
             break;
@@ -609,7 +633,7 @@ static void record_endgame_stats(void) {
         global_stats.sprint_games++;
         if (p1.won) {
             global_stats.sprint_wins++;
-            double time_taken = get_time_sec() - p1.mode_start_time;
+            double time_taken = elapsed_mode_time(&p1);
             if (time_taken >= 5.0 && time_taken < global_stats.sprint_best_time) {
                 global_stats.sprint_best_time = time_taken;
             }
@@ -661,6 +685,7 @@ static void lock_piece_p(PlayerState *p, PlayerState *opponent) {
 
     if (game_mode == MODE_SPRINT && p->lines >= 40) {
         p->won = true;
+        stop_mode_clock(p);
         p->game_over = true;
         record_endgame_stats();
     }
@@ -854,16 +879,15 @@ static void update_ai_player(PlayerState *ai, PlayerState *human, double current
         if (ai->current.rot != ai->target_rot) {
             int next_rot = (ai->current.rot + 1) % 4;
             try_rotate_p(ai, next_rot);
-        } else if (ai->current.x < ai->target_x) {
-            if (!check_collision(ai, &ai->current, 1, 0, ai->current.rot)) {
-                ai->current.x++;
-            }
-        } else if (ai->current.x > ai->target_x) {
-            if (!check_collision(ai, &ai->current, -1, 0, ai->current.rot)) {
-                ai->current.x--;
-            }
         } else {
-            if (direct_hard_drop) {
+            bool want_right = ai->current.x < ai->target_x;
+            bool want_left = ai->current.x > ai->target_x;
+
+            if (want_right && !check_collision(ai, &ai->current, 1, 0, ai->current.rot)) {
+                ai->current.x++;
+            } else if (want_left && !check_collision(ai, &ai->current, -1, 0, ai->current.rot)) {
+                ai->current.x--;
+            } else if (direct_hard_drop) {
                 hard_drop_p(ai, human);
             } else {
                 if (!check_collision(ai, &ai->current, 0, 1, ai->current.rot)) {
@@ -1053,7 +1077,7 @@ static void render_player(const PlayerState *p, int start_y, int start_x, const 
     }
 
     if (game_mode == MODE_SPRINT && !p->is_ai) {
-        double elapsed = (p->won || p->game_over) ? (get_time_sec() - p->mode_start_time) : (get_time_sec() - p->mode_start_time);
+        double elapsed = elapsed_mode_time(p);
         attron(A_BOLD | COLOR_PAIR(16));
         mvprintw(cur_y + 17, side_origin_x + 2, "TIME: %.1fs", elapsed);
         attroff(A_BOLD | COLOR_PAIR(16));
@@ -1297,9 +1321,12 @@ int main(void) {
     getmaxyx(stdscr, term_h, term_w);
     init_menu_stars(term_h, term_w);
 
+    double pause_started = 0.0;
+
     while (running) {
         getmaxyx(stdscr, term_h, term_w);
         global_tick++;
+        double cur_time = get_time_sec();
 
         int ch = getch();
 
@@ -1359,7 +1386,7 @@ int main(void) {
             continue;
         }
 
-        int req_w = (game_mode == MODE_VS_BOT) ? 96 : 48;
+        int req_w = (game_mode == MODE_VS_BOT) ? 102 : 50;
         if (term_h < 23 || term_w < req_w) {
             erase();
             mvprintw(term_h / 2, (term_w - 24) > 0 ? (term_w - 24) / 2 : 0, "Terminal too small: %dx%d", term_w, term_h);
@@ -1377,9 +1404,18 @@ int main(void) {
             continue;
         }
 
-        if (ch == 'p' || ch == 'P') {
-            if (game_state == STATE_PLAYING) game_state = STATE_PAUSED;
-            else if (game_state == STATE_PAUSED) game_state = STATE_PLAYING;
+        if ((ch == 'p' || ch == 'P') && !p1.game_over) {
+            if (game_state == STATE_PLAYING) {
+                game_state = STATE_PAUSED;
+                pause_started = cur_time;
+            } else if (game_state == STATE_PAUSED) {
+                double paused_for = cur_time - pause_started;
+                offset_timers(&p1, paused_for);
+                if (game_mode == MODE_VS_BOT) {
+                    offset_timers(&p2, paused_for);
+                }
+                game_state = STATE_PLAYING;
+            }
         }
 
         if (ch == 'r' || ch == 'R') {
@@ -1387,8 +1423,6 @@ int main(void) {
             start_game(game_mode, current_diff);
             continue;
         }
-
-        double cur_time = get_time_sec();
 
         if (game_state == STATE_PLAYING) {
             if (game_mode == MODE_SURVIVAL && !p1.game_over) {
@@ -1460,16 +1494,18 @@ int main(void) {
             }
         }
 
-        update_particles(&p1);
-        if (p1.shake_frames > 0) p1.shake_frames--;
-        if (p1.flash_timer > 0) p1.flash_timer--;
-        if (p1.banner_timer > 0) p1.banner_timer--;
+        if (game_state == STATE_PLAYING) {
+            update_particles(&p1);
+            if (p1.shake_frames > 0) p1.shake_frames--;
+            if (p1.flash_timer > 0) p1.flash_timer--;
+            if (p1.banner_timer > 0) p1.banner_timer--;
 
-        if (game_mode == MODE_VS_BOT) {
-            update_particles(&p2);
-            if (p2.shake_frames > 0) p2.shake_frames--;
-            if (p2.flash_timer > 0) p2.flash_timer--;
-            if (p2.banner_timer > 0) p2.banner_timer--;
+            if (game_mode == MODE_VS_BOT) {
+                update_particles(&p2);
+                if (p2.shake_frames > 0) p2.shake_frames--;
+                if (p2.flash_timer > 0) p2.flash_timer--;
+                if (p2.banner_timer > 0) p2.banner_timer--;
+            }
         }
 
         erase();
