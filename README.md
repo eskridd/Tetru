@@ -6,6 +6,14 @@ Made by **Eskrid**.
 
 ---
 
+https://github.com/user-attachments/assets/tetru.mp4
+
+https://raw.githubusercontent.com/eskridd/Tetru/main/tetru.mp4
+
+<video src="tetru.mp4" autoplay loop muted playsinline width="100%"></video>
+
+---
+
 ## Features
 
 - **Cross-Platform**: Runs natively on **Linux**, **macOS**, and **Windows**.
